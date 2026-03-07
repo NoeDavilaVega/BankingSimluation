@@ -172,7 +172,9 @@ min="1"
 max="10"
 step="1"
 value="${d.infectivity}"
-oninput="diseases[${i}].infectivity=parseInt(this.value)">
+oninput="diseases[${i}].infectivity=parseInt(this.value);document.getElementById('infVal${i}').innerText=this.value">
+
+<span id="infVal${i}">${d.infectivity}</span>
 
 <br>
 
@@ -244,6 +246,30 @@ updateStats()
 
 }
 
+function findClosestHealthy(px,py){
+
+let closest=null
+let bestDist=Infinity
+
+for(let p of people){
+
+if(p.disease!==null) continue
+
+let dx=p.x-px
+let dy=p.y-py
+let dist=dx*dx+dy*dy
+
+if(dist<bestDist){
+bestDist=dist
+closest=p
+}
+
+}
+
+return closest
+
+}
+
 function step(){
 
 simTime+=tickMS
@@ -268,9 +294,8 @@ if(day>lastDay){
 
 let counts=new Array(diseases.length).fill(0)
 
-for(let p of people){
+for(let p of people)
 if(p.disease!==null) counts[p.disease]++
-}
 
 for(let i=0;i<diseases.length;i++){
 
@@ -293,23 +318,27 @@ infectionBuffer[i]+=newCases
 }
 
 lastDay=day
-updateGraph()
 
 }
 
 for(let i=0;i<diseases.length;i++){
 
 let spreadPerTick=infectionBuffer[i]*(tickMS/dayLength)
-
 let cases=Math.floor(spreadPerTick)
 
 for(let j=0;j<cases;j++){
 
-if(healthy.length===0) break
+let carriers=people.filter(p=>p.disease===i)
 
-let target=healthy.pop()
+if(carriers.length===0) break
+
+let carrier=carriers[Math.floor(Math.random()*carriers.length)]
+
+let target=findClosestHealthy(carrier.x,carrier.y)
+
+if(!target) break
+
 target.disease=i
-
 infectionBuffer[i]--
 
 }
@@ -318,8 +347,9 @@ infectionBuffer[i]--
 
 draw()
 updateStats()
+updateGraph()
 
-if(healthy.length===0){
+if(people.every(p=>p.disease!==null)){
 pause()
 document.getElementById("status").innerText="Simulation finished: entire population infected."
 }
@@ -349,12 +379,9 @@ ctx.stroke()
 
 function updateStats(){
 
-let healthy=0
+let healthy=people.filter(p=>p.disease===null).length
 
-for(let p of people)
-if(p.disease===null) healthy++
-
-document.getElementById("time").innerText=Math.floor(simTime/dayLength)
+document.getElementById("time").innerText=(simTime/1000).toFixed(2)
 document.getElementById("healthy").innerText=healthy
 
 }
@@ -407,9 +434,9 @@ y:{title:{display:true,text:"Population"}}
 
 function updateGraph(){
 
-let day=Math.floor(simTime/dayLength)
+let t=(simTime/1000)
 
-chart.data.labels.push(day)
+chart.data.labels.push(t)
 
 let healthy=0
 let counts=new Array(diseases.length).fill(0)
