@@ -2,18 +2,18 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Credit Card Debt Simulator</title>
+<title>Exponential Simulation Lab</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 
 body{
-font-family: Arial;
-max-width:900px;
+font-family:Arial;
+max-width:1000px;
 margin:auto;
-padding:20px;
 background:#f4f4f4;
+padding:20px;
 }
 
 h1{
@@ -29,56 +29,39 @@ box-shadow:0 2px 5px rgba(0,0,0,.1);
 }
 
 button{
-padding:10px 15px;
+padding:10px 16px;
 font-size:16px;
+margin:4px;
 cursor:pointer;
-margin:5px;
 }
 
 input{
-padding:5px;
 font-size:16px;
+padding:5px;
+}
+
+#modeMenu button{
+font-size:18px;
+padding:14px;
+}
+
+.bigEvent{
+font-size:26px;
+text-align:center;
+padding:20px;
+background:#fff3cd;
+border-radius:10px;
+}
+
+.mathBox{
+background:#e8f4ff;
+padding:15px;
+border-radius:8px;
 }
 
 .stat{
 font-size:18px;
-margin:5px 0;
-}
-
-#eventBox{
-font-size:28px;
-text-align:center;
-padding:25px;
-background:#fff3cd;
-border-radius:10px;
-margin-bottom:10px;
-}
-
-#taunt{
-color:#a00;
-font-weight:bold;
-text-align:center;
-}
-
-canvas{
-background:white;
-}
-
-#menu{
-text-align:center;
-}
-
-.cardChoice{
-padding:15px;
-margin:10px;
-font-size:18px;
-}
-
-.mathHint{
-background:#e8f4ff;
-padding:15px;
-border-radius:8px;
-margin-top:10px;
+margin:4px;
 }
 
 </style>
@@ -86,48 +69,49 @@ margin-top:10px;
 
 <body>
 
-<h1>Credit Card Debt Simulator</h1>
+<h1>Exponential Simulation Lab</h1>
 
-<div id="menu" class="panel">
+<div class="panel" id="modeMenu">
 
-<h2>Choose Your Credit Card</h2>
+<h2>Choose Simulation</h2>
 
-<button class="cardChoice" onclick="startGame(18)">Student Card (18% APR)</button>
-<button class="cardChoice" onclick="startGame(22)">Standard Card (22% APR)</button>
-<button class="cardChoice" onclick="startGame(29)">Store Card (29% APR)</button>
-
-<p>Each card compounds interest monthly.</p>
+<button onclick="setMode('credit')">Credit Card Debt</button>
+<button onclick="setMode('investment')">Investment Growth</button>
+<button onclick="setMode('loan')">Loan Payoff</button>
+<button onclick="setMode('explore')">Pure Exponential Explorer</button>
 
 </div>
 
-<div id="game" style="display:none">
+<div id="simulation" style="display:none">
 
 <div class="panel">
 
-<div class="stat">Month: <span id="month">0</span></div>
-<div class="stat">Balance: $<span id="balance">0</span></div>
-<div class="stat">APR: <span id="apr">0</span>%</div>
-<div class="stat">Total Interest Paid: $<span id="interestPaid">0</span></div>
+<div class="stat">Time (x): <span id="time">0</span></div>
+<div class="stat">Current Value (y): $<span id="value">0</span></div>
 
 </div>
 
 <div class="panel">
 
-<div class="stat">Interest this month: $<span id="interest">0</span></div>
-<div class="stat">Minimum payment: $<span id="minpay">0</span></div>
+<label>a (starting value)</label>
+<input id="aInput" type="number" value="2000">
 
-<label>Your payment: $</label>
-<input type="number" id="payment" value="100">
+<br><br>
 
-<button onclick="nextMonth()">Next Month</button>
+<label>b (growth/decay factor)</label>
+<input id="bInput" type="number" step="0.001" value="1.02">
+
+<br><br>
+
+<button onclick="step()">Step Forward</button>
+<button onclick="step10()">Step 10</button>
+<button onclick="resetSim()">Reset</button>
 
 </div>
 
 <div class="panel">
 
-<div id="eventBox">Welcome to the simulation.</div>
-
-<div id="taunt"></div>
+<div class="bigEvent" id="modeExplanation"></div>
 
 </div>
 
@@ -137,59 +121,25 @@ margin-top:10px;
 
 </div>
 
-<div class="panel mathHint">
+<div class="panel mathBox">
 
-<h3>Math Connection</h3>
+<h3>Exponential Model</h3>
 
-<p>The balance grows according to an exponential model:</p>
+<p>
 
-<p><b>y = a(b)<sup>x</sup></b></p>
+<b>y = a(b)<sup>x</sup></b>
+
+</p>
 
 <ul>
 
-<li><b>a</b> = starting balance</li>
-
-<li><b>b</b> = growth factor (interest)</li>
-
-<li><b>x</b> = number of months</li>
+<li>a = starting value</li>
+<li>b = growth factor</li>
+<li>x = time</li>
 
 </ul>
 
-<p>
-
-Each month the balance multiplies by:
-
-<b>b = 1 + (APR / 12)</b>
-
-</p>
-
-<p>
-
-Example:
-
-If APR = 24%
-
-<br>
-
-Monthly rate = 0.24 / 12 = 0.02
-
-<br>
-
-Growth factor:
-
-<b>b = 1.02</b>
-
-</p>
-
-<p>
-
-That means the balance follows:
-
-<br>
-
-<b>Balance ≈ a(1.02)<sup>x</sup></b>
-
-</p>
+<p id="growthExplanation"></p>
 
 </div>
 
@@ -197,148 +147,165 @@ That means the balance follows:
 
 <script>
 
-let balance
-let apr
-let month
-let totalInterest
-let history
+let mode = ""
+let a = 2000
+let b = 1.02
+let x = 0
+let value = 2000
+
+let history=[]
 let chart
 
-let events = [
-{ text:"Car repair! +$500", amount:500 },
-{ text:"Bought a new phone! +$900", amount:900 },
-{ text:"Medical bill! +$700", amount:700 },
-{ text:"Concert tickets! +$300", amount:300 },
-{ text:"No extra expenses this month.", amount:0 }
-]
+function setMode(m){
 
-let taunts = [
-"The bank appreciates your interest payments.",
-"Minimum payments make us very rich.",
-"Interest never sleeps.",
-"The bank CEO thanks you personally."
-]
+mode = m
 
-function startGame(cardAPR){
+document.getElementById("modeMenu").style.display="none"
+document.getElementById("simulation").style.display="block"
 
-document.getElementById("menu").style.display="none"
-document.getElementById("game").style.display="block"
+if(mode==="credit"){
 
-balance = 2000
-apr = cardAPR
-month = 0
-totalInterest = 0
-history = [balance]
+a=2000
+b=1.02
 
-document.getElementById("apr").innerText = apr
+document.getElementById("modeExplanation").innerText=
+"Credit Card Debt grows each month due to interest."
 
-const ctx = document.getElementById("chart")
+}
 
-chart = new Chart(ctx,{
+if(mode==="investment"){
+
+a=1000
+b=1.01
+
+document.getElementById("modeExplanation").innerText=
+"Investments grow as interest compounds."
+
+}
+
+if(mode==="loan"){
+
+a=5000
+b=0.98
+
+document.getElementById("modeExplanation").innerText=
+"Loan balance decays as payments exceed interest."
+
+}
+
+if(mode==="explore"){
+
+a=100
+b=1.05
+
+document.getElementById("modeExplanation").innerText=
+"Experiment freely with exponential growth and decay."
+
+}
+
+document.getElementById("aInput").value=a
+document.getElementById("bInput").value=b
+
+initChart()
+
+resetSim()
+
+}
+
+function initChart(){
+
+const ctx=document.getElementById("chart")
+
+chart=new Chart(ctx,{
 type:"line",
 data:{
-labels:["0"],
-datasets:[{
-label:"Balance",
-data:[balance]
-}]
+labels:[],
+datasets:[
+{
+label:"Simulation",
+data:[]
+}
+]
 },
 options:{responsive:true}
 })
+
+}
+
+function updateGrowthText(){
+
+if(b>1){
+
+document.getElementById("growthExplanation").innerText=
+"Since b > 1, the function shows exponential growth."
+
+}
+else if(b<1){
+
+document.getElementById("growthExplanation").innerText=
+"Since b < 1, the function shows exponential decay."
+
+}
+else{
+
+document.getElementById("growthExplanation").innerText=
+"When b = 1, the value stays constant."
+
+}
+
+}
+
+function resetSim(){
+
+a=parseFloat(document.getElementById("aInput").value)
+b=parseFloat(document.getElementById("bInput").value)
+
+x=0
+value=a
+
+history=[value]
+
+chart.data.labels=[0]
+chart.data.datasets[0].data=[value]
+chart.update()
+
+updateDisplay()
+updateGrowthText()
+
+}
+
+function step(){
+
+b=parseFloat(document.getElementById("bInput").value)
+
+x++
+
+value=value*b
+
+history.push(value)
+
+chart.data.labels.push(x)
+chart.data.datasets[0].data=history
+chart.update()
 
 updateDisplay()
 
 }
 
-function minimumPayment(){
+function step10(){
 
-return Math.max(balance*0.02,25)
+for(let i=0;i<10;i++){
 
-}
-
-function randomEvent(){
-
-if(Math.random()<0.3){
-
-let e = events[Math.floor(Math.random()*events.length)]
-
-balance += e.amount
-
-document.getElementById("eventBox").innerText = e.text
-
-}else{
-
-document.getElementById("eventBox").innerText = "Nothing unusual happened this month."
+step()
 
 }
-
-}
-
-function bankTaunt(){
-
-let t = taunts[Math.floor(Math.random()*taunts.length)]
-
-document.getElementById("taunt").innerText = t
 
 }
 
 function updateDisplay(){
 
-document.getElementById("month").innerText = month
-document.getElementById("balance").innerText = balance.toFixed(2)
-document.getElementById("interestPaid").innerText = totalInterest.toFixed(2)
-
-let min = minimumPayment()
-
-document.getElementById("minpay").innerText = min.toFixed(2)
-
-}
-
-function nextMonth(){
-
-if(balance<=0){
-
-document.getElementById("eventBox").innerText = "You paid off the card! Congratulations."
-
-return
-
-}
-
-month++
-
-randomEvent()
-
-let monthlyRate = apr/100/12
-
-let interest = balance * monthlyRate
-
-balance += interest
-
-totalInterest += interest
-
-document.getElementById("interest").innerText = interest.toFixed(2)
-
-let payment = parseFloat(document.getElementById("payment").value)
-
-if(payment>balance){
-
-payment = balance
-
-}
-
-balance -= payment
-
-history.push(balance)
-
-chart.data.labels.push(month)
-
-chart.data.datasets[0].data = history
-
-chart.update()
-
-bankTaunt()
-
-updateDisplay()
+document.getElementById("time").innerText=x
+document.getElementById("value").innerText=value.toFixed(2)
 
 }
 
