@@ -433,10 +433,10 @@ ctx.stroke()
 
 function updateStats(){
 
-let healthy=people.filter(p=>p.disease===null).length
+let healthyCount = people.filter(p=>p.disease===null).length
 
-time.innerText=(simTime/1000).toFixed(2)
-healthy.innerText=healthy
+time.innerText = (simTime/1000).toFixed(2)
+healthy.innerText = healthyCount
 
 }
 
