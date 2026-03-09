@@ -7,11 +7,11 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
+
 body{
 font-family:Arial;
 background:#f4f4f4;
 text-align:center;
-margin:20px;
 }
 
 canvas{
@@ -20,7 +20,19 @@ background:white;
 margin-top:10px;
 }
 
-.sliderBox{margin:6px;}
+.tabs button{
+padding:8px 14px;
+margin:5px;
+cursor:pointer;
+}
+
+.tab{
+display:none;
+}
+
+.tab.active{
+display:block;
+}
 
 .diseaseBlock{
 border:1px solid #ccc;
@@ -30,63 +42,78 @@ margin:6px;
 display:inline-block;
 }
 
-.stats{
-font-size:18px;
-margin:10px;
-}
-
-#status{
-font-weight:bold;
-color:darkred;
-margin-top:10px;
-}
 </style>
 </head>
 
 <body>
 
-<h1>Infection Simulator</h1>
+<h2>Infection Simulator</h2>
+
+<div class="tabs">
+<button onclick="showTab('sim')">Simulation</button>
+<button onclick="showTab('graph')">Graph</button>
+</div>
+
+<!-- SIM TAB -->
+
+<div id="sim" class="tab active">
 
 <canvas id="simCanvas" width="900" height="500"></canvas>
 
-<div class="sliderBox">
+<br>
+
 Population
 <input type="range" id="popSlider" min="50" max="2000" value="500">
 <span id="popValue"></span>
-</div>
 
-<div class="sliderBox">
+<br>
+
 Starting Infected
 <input type="range" id="startSlider" min="1" max="50" value="5">
 <span id="startValue"></span>
-</div>
 
-<div class="sliderBox">
+<br>
+
 Movement Speed
 <input type="range" id="moveSlider" min="0" max="5" step="0.2" value="1">
 <span id="moveValue"></span>
-</div>
+
+<br>
+
+Simulation Speed
+<input type="range" id="speedSlider" min="0.25" max="20" step="0.25" value="1">
+<span id="speedValue"></span>x
+
+<br><br>
 
 <button onclick="addDisease()">Add Disease</button>
 
 <div id="diseaseControls"></div>
 
-<div>
+<br>
+
 <button onclick="start()">Play</button>
 <button onclick="pause()">Pause</button>
 <button onclick="reset()">Reset</button>
-</div>
 
-<div class="stats">
-Day: <span id="time">0</span> |
+<br><br>
+
+Day: <span id="time">0</span>
+|
 Healthy: <span id="healthy">0</span>
-</div>
 
 <div id="status"></div>
 
-<h2>Population Graph</h2>
+</div>
 
-<canvas id="graphCanvas" width="900" height="350"></canvas>
+
+<!-- GRAPH TAB -->
+
+<div id="graph" class="tab">
+
+<canvas id="graphCanvas" width="900" height="500"></canvas>
+
+</div>
 
 <script>
 
@@ -94,28 +121,39 @@ let canvas=document.getElementById("simCanvas")
 let ctx=canvas.getContext("2d")
 
 let people=[]
+let infectedLists=[]
+
 let diseases=[]
-let chart=null
-let timer=null
+let chart
 
 let simTime=0
 let lastDay=0
 
-const tickMS=50
+let timer=null
+
+const tickMS=40
 const dayLength=1000
 
 let infectionBuffer=[]
 let infectionAccumulator=[]
 
 const colors=[
-"red","blue","purple","orange","brown",
-"black","magenta","cyan","gold","green"
+"red","blue","purple","orange","black","brown","cyan"
 ]
 
+function showTab(id){
+
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"))
+
+document.getElementById(id).classList.add("active")
+}
+
 function updateSliderLabels(){
+
 popValue.innerText=popSlider.value
 startValue.innerText=startSlider.value
 moveValue.innerText=moveSlider.value
+speedValue.innerText=speedSlider.value
 }
 
 document.querySelectorAll("input[type=range]").forEach(s=>{
@@ -138,6 +176,7 @@ reset()
 }
 
 function removeDisease(i){
+
 diseases.splice(i,1)
 renderDiseaseControls()
 reset()
@@ -154,6 +193,7 @@ let div=document.createElement("div")
 div.className="diseaseBlock"
 
 div.innerHTML=`
+
 <input value="${d.name}"
 oninput="diseases[${i}].name=this.value">
 
@@ -163,19 +203,18 @@ oninput="diseases[${i}].name=this.value">
 
 <br>
 
-Infectivity (x)
+Infectivity
+
 <input type="range"
 min="1"
 max="10"
-step="1"
 value="${d.infectivity}"
-oninput="diseases[${i}].infectivity=parseInt(this.value);document.getElementById('infVal${i}').innerText=this.value">
+oninput="diseases[${i}].infectivity=parseInt(this.value);document.getElementById('inf${i}').innerText=this.value">
 
-<span id="infVal${i}">${d.infectivity}</span>
+<span id="inf${i}">${d.infectivity}</span>
 
 <br>
 
-Model
 <select onchange="diseases[${i}].model=this.value">
 
 <option value="exponential" ${d.model==="exponential"?"selected":""}>Exponential</option>
@@ -190,7 +229,9 @@ Model
 `
 
 container.appendChild(div)
+
 })
+
 }
 
 function reset(){
@@ -198,22 +239,30 @@ function reset(){
 pause()
 
 people=[]
+infectedLists=[]
 infectionBuffer=[]
 infectionAccumulator=[]
+
 simTime=0
 lastDay=0
 
-document.getElementById("status").innerText=""
-
-let population=parseInt(popSlider.value)
+let pop=parseInt(popSlider.value)
 let start=parseInt(startSlider.value)
 
-for(let i=0;i<population;i++){
+for(let i=0;i<pop;i++){
+
 people.push({
 x:Math.random()*canvas.width,
 y:Math.random()*canvas.height,
 disease:null
 })
+
+}
+
+for(let i=0;i<diseases.length;i++){
+infectedLists.push([])
+infectionBuffer.push(0)
+infectionAccumulator.push(0)
 }
 
 let index=0
@@ -221,24 +270,28 @@ let index=0
 for(let d=0;d<diseases.length;d++){
 
 for(let i=0;i<start;i++){
+
 if(index<people.length){
+
 people[index].disease=d
+infectedLists[d].push(people[index])
 index++
-}
+
 }
 
-infectionBuffer.push(0)
-infectionAccumulator.push(0)
+}
+
 }
 
 initGraph()
 draw()
 updateStats()
+
 }
 
 function findClosestHealthy(px,py){
 
-let closest=null
+let best=null
 let bestDist=Infinity
 
 for(let p of people){
@@ -247,20 +300,27 @@ if(p.disease!==null) continue
 
 let dx=p.x-px
 let dy=p.y-py
+
 let dist=dx*dx+dy*dy
 
 if(dist<bestDist){
+
 bestDist=dist
-closest=p
-}
+best=p
+
 }
 
-return closest
+}
+
+return best
+
 }
 
 function step(){
 
-simTime+=tickMS
+let speed=parseFloat(speedSlider.value)
+
+simTime+=tickMS*speed
 
 let moveSpeed=parseFloat(moveSlider.value)
 
@@ -271,21 +331,17 @@ p.y+=(Math.random()-0.5)*moveSpeed*4
 
 p.x=Math.max(0,Math.min(canvas.width,p.x))
 p.y=Math.max(0,Math.min(canvas.height,p.y))
+
 }
 
 let day=Math.floor(simTime/dayLength)
 
 if(day>lastDay){
 
-let counts=new Array(diseases.length).fill(0)
-
-for(let p of people)
-if(p.disease!==null) counts[p.disease]++
-
 for(let i=0;i<diseases.length;i++){
 
 let x=diseases[i].infectivity
-let infected=counts[i]
+let infected=infectedLists[i].length
 
 let newCases=0
 
@@ -299,9 +355,11 @@ else
 newCases=infected*x
 
 infectionBuffer[i]+=newCases
+
 }
 
 lastDay=day
+
 }
 
 for(let i=0;i<diseases.length;i++){
@@ -312,19 +370,24 @@ infectionAccumulator[i]+=perTick
 
 while(infectionAccumulator[i]>=1){
 
-let carriers=people.filter(p=>p.disease===i)
+let carriers=infectedLists[i]
+
 if(carriers.length===0) break
 
 let carrier=carriers[Math.floor(Math.random()*carriers.length)]
 
 let target=findClosestHealthy(carrier.x,carrier.y)
+
 if(!target) break
 
 target.disease=i
+infectedLists[i].push(target)
 
 infectionAccumulator[i]-=1
 infectionBuffer[i]-=1
+
 }
+
 }
 
 draw()
@@ -332,9 +395,12 @@ updateStats()
 updateGraph()
 
 if(people.every(p=>p.disease!==null)){
+
 pause()
-document.getElementById("status").innerText="Simulation finished: entire population infected."
+status.innerText="Simulation finished"
+
 }
+
 }
 
 function draw(){
@@ -344,6 +410,7 @@ ctx.clearRect(0,0,canvas.width,canvas.height)
 for(let p of people){
 
 ctx.beginPath()
+
 ctx.arc(p.x,p.y,3,0,Math.PI*2)
 
 if(p.disease===null)
@@ -353,60 +420,65 @@ ctx.fillStyle=diseases[p.disease].color
 
 ctx.fill()
 ctx.stroke()
+
 }
+
 }
 
 function updateStats(){
 
 let healthy=people.filter(p=>p.disease===null).length
 
-document.getElementById("time").innerText=(simTime/1000).toFixed(2)
-document.getElementById("healthy").innerText=healthy
+time.innerText=(simTime/1000).toFixed(2)
+healthy.innerText=healthy
+
 }
 
 function start(){
+
 pause()
+
 timer=setInterval(step,tickMS)
+
 }
 
 function pause(){
+
 if(timer){
 clearInterval(timer)
 timer=null
 }
+
 }
 
 function initGraph(){
 
 if(chart) chart.destroy()
 
-let ctx=document.getElementById("graphCanvas")
+let ctx2=document.getElementById("graphCanvas")
 
 let datasets=[{
 label:"Healthy",
 borderColor:"green",
-data:[people.filter(p=>p.disease===null).length]
+data:[people.length]
 }]
 
 diseases.forEach((d,i)=>{
+
 datasets.push({
 label:d.name,
 borderColor:d.color,
-data:[people.filter(p=>p.disease===i).length]
-})
+data:[infectedLists[i].length]
 })
 
-chart=new Chart(ctx,{
+})
+
+chart=new Chart(ctx2,{
 type:"line",
 data:{labels:[0],datasets:datasets},
-options:{
-animation:false,
-scales:{
-x:{title:{display:true,text:"Days"}},
-y:{title:{display:true,text:"Population"}}
-}
-}
+options:{animation:false}
 })
+
 }
 
 function updateGraph(){
@@ -415,21 +487,18 @@ let t=simTime/1000
 
 chart.data.labels.push(t)
 
-let healthy=0
-let counts=new Array(diseases.length).fill(0)
+let healthyCount=people.filter(p=>p.disease===null).length
 
-for(let p of people){
+chart.data.datasets[0].data.push(healthyCount)
 
-if(p.disease===null) healthy++
-else counts[p.disease]++
+for(let i=0;i<diseases.length;i++){
+
+chart.data.datasets[i+1].data.push(infectedLists[i].length)
+
 }
 
-chart.data.datasets[0].data.push(healthy)
-
-for(let i=0;i<diseases.length;i++)
-chart.data.datasets[i+1].data.push(counts[i])
-
 chart.update()
+
 }
 
 updateSliderLabels()
